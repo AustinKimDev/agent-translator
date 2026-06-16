@@ -1,60 +1,58 @@
 # Agent Translator
 
-Agent Translator is a Rust CLI for inspecting AI agent configuration files across tools such as Claude, Codex, Cursor, and Antigravity.
+![status](https://img.shields.io/badge/status-early%20MVP-yellow)
+![language](https://img.shields.io/badge/language-Rust-orange)
+![interface](https://img.shields.io/badge/interface-CLI-blue)
 
-Modern projects often accumulate several agent-specific setup files: `CLAUDE.md`, `AGENTS.md`, Cursor rules, hook notes, linked Markdown documents, and tool-specific workflows. Agent Translator provides a small common scanner so you can see what exists, compare differences, and prepare for migration between agent ecosystems.
+Inspect, compare, and prepare migrations between AI agent configuration files.
 
-This repository is an early MVP. The current implementation is a CLI and reusable Rust library core. GUI support and real migration writing are planned, but not implemented yet.
+Agent Translator looks for files such as `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, and `antigravity.md`, follows their local Markdown links, and reports what differs between agent setups. It is built in Rust and currently ships as a small CLI plus reusable library core.
 
-## What It Does Today
+**Status:** early MVP. It scans and reports. It does not rewrite your files yet.
 
-- Detects known agent setting files:
-  - `CLAUDE.md` -> Claude
-  - `AGENTS.md` -> Codex
-  - `.cursorrules` or `cursor.md` -> Cursor
-  - `antigravity.md` -> Antigravity
-- Extracts local Markdown links from agent setting files.
-- Includes linked `.md` documents in scan results.
-- Detects hook-related feature usage using token-based matching.
-- Compares detected feature differences across agent settings.
-- Provides text and JSON output for automation.
-- Produces a migration dry-run plan without writing files.
-- Skips `.git`, `.worktrees`, and `target` directories.
-- Does not follow symlinked directories while scanning.
+## Contents
 
-## Non-Goals For The Current MVP
+- [Highlights](#highlights)
+- [Quick Start](#quick-start)
+- [Examples](#examples)
+- [Supported Inputs](#supported-inputs)
+- [JSON Output](#json-output)
+- [Why Use It?](#why-use-it)
+- [What It Does Not Do Yet](#what-it-does-not-do-yet)
+- [Development](#development)
+- [Roadmap](#roadmap)
+- [License](#license)
 
-- No actual file migration is performed.
-- No AI or `codex exec` call is made.
-- No GUI is implemented yet.
-- No full CommonMark parser is used.
-- No remote URL crawling is performed.
-- No files are overwritten by the CLI.
+## Highlights
 
-## Installation
+- Finds known AI agent setting files in a project tree.
+- Detects Claude, Codex, Cursor, and Antigravity settings.
+- Extracts local linked `.md` documents from agent instructions.
+- Includes linked documents in scan results.
+- Detects hook-related configuration as a feature flag.
+- Compares feature mismatches across agent settings.
+- Emits human-readable text or machine-readable JSON.
+- Produces a migration dry-run plan.
+- Avoids `.git`, `.worktrees`, and `target`.
+- Skips symlinked directories while scanning.
+- Uses the Rust standard library only.
 
-From source:
+## Quick Start
 
 ```bash
 git clone https://github.com/AustinKimDev/agent-translator.git
 cd agent-translator
-cargo build
-```
-
-Run without installing:
-
-```bash
 cargo run -- scan .
 ```
 
-Install locally from the checkout:
+Install from a local checkout:
 
 ```bash
 cargo install --path .
 agent-translator scan .
 ```
 
-## Usage
+## Examples
 
 ### Scan a project
 
@@ -62,7 +60,7 @@ agent-translator scan .
 agent-translator scan /path/to/project
 ```
 
-Example output:
+Example:
 
 ```text
 scan
@@ -81,21 +79,13 @@ linked documents: 3
 - /path/to/project/rules/shared.md
 ```
 
-### Scan as JSON
-
-```bash
-agent-translator scan --json /path/to/project
-```
-
-The JSON output is intended for scripts, future GUI integration, and migration tooling.
-
-### Compare agent settings
+### Compare settings
 
 ```bash
 agent-translator diff /path/to/project
 ```
 
-Example output:
+Example:
 
 ```text
 diff
@@ -108,19 +98,13 @@ present: Claude
 missing: Codex
 ```
 
-JSON output is also available:
-
-```bash
-agent-translator diff --json /path/to/project
-```
-
-### Produce a migration dry-run plan
+### Preview a migration
 
 ```bash
 agent-translator migrate claude codex /path/to/project
 ```
 
-Example output:
+Example:
 
 ```text
 migration dry-run
@@ -134,11 +118,86 @@ root: /path/to/project
 4. write target draft
 ```
 
-JSON output:
+## Supported Inputs
+
+| File name | Tool |
+| --- | --- |
+| `CLAUDE.md` | Claude |
+| `AGENTS.md` | Codex |
+| `.cursorrules` | Cursor |
+| `cursor.md` | Cursor |
+| `antigravity.md` | Antigravity |
+
+Agent Translator currently extracts local Markdown links from:
+
+```md
+[shared rules](rules/shared.md)
+
+[shared]: rules/shared.md
+```
+
+Remote URLs, anchors-only links, and non-Markdown files are ignored.
+
+## JSON Output
+
+Every command that reports project state can emit JSON.
 
 ```bash
+agent-translator scan --json /path/to/project
+agent-translator diff --json /path/to/project
 agent-translator migrate claude codex --json /path/to/project
 ```
+
+`scan --json` returns a normalized project model:
+
+```json
+{
+  "command": "scan",
+  "root": "/path/to/project",
+  "agents": [
+    {
+      "tool": "Claude",
+      "source_path": "/path/to/project/CLAUDE.md",
+      "linked_markdown_paths": ["/path/to/project/rules/shared.md"],
+      "features": ["Hooks"]
+    }
+  ],
+  "linked_documents": ["/path/to/project/rules/shared.md"]
+}
+```
+
+The normalized model is intentionally small:
+
+- project root
+- agent tool
+- source setting path
+- linked Markdown document paths
+- detected feature flags
+
+Current feature flags:
+
+- `Hooks`
+
+## Why Use It?
+
+Use Agent Translator when a project has more than one agent setup and you want to answer questions like:
+
+- Which agent settings exist in this repository?
+- Which linked instruction files are part of the effective setup?
+- Does one tool rely on a feature another tool does not support?
+- What would a migration workflow need to inspect before writing a target config?
+
+It is meant to be a boring inspection layer first. Migration and GUI work should build on top of a dependable scanner.
+
+## What It Does Not Do Yet
+
+- It does not write migrated config files.
+- It does not call an AI model or `codex exec`.
+- It does not implement a GUI.
+- It does not fully parse CommonMark.
+- It does not crawl network links.
+- It does not infer the full semantics of every agent ecosystem.
+- It does not overwrite project files.
 
 ## CLI Reference
 
@@ -155,22 +214,6 @@ tools: claude, codex, antigravity, cursor
 
 If `path` is omitted, the current directory is used.
 
-## Output Model
-
-The scanner normalizes discovered settings into:
-
-- project root
-- agent tool
-- source setting path
-- linked Markdown document paths
-- detected feature flags
-
-The current normalized feature set contains:
-
-- `Hooks`
-
-This model is intentionally small. It is the shared base for future migration and GUI work.
-
 ## Development
 
 Requirements:
@@ -178,7 +221,7 @@ Requirements:
 - Rust 2024 edition compatible toolchain
 - Cargo
 
-Common commands:
+Run the checks:
 
 ```bash
 cargo fmt --check
@@ -186,7 +229,7 @@ cargo test
 cargo clippy -- -D warnings
 ```
 
-Run the CLI during development:
+Run the CLI locally:
 
 ```bash
 cargo run -- scan .
@@ -195,38 +238,29 @@ cargo run -- diff .
 cargo run -- migrate claude codex .
 ```
 
-## Project Status
+## Roadmap
 
-Agent Translator is in early MVP stage.
-
-Implemented:
-
-- Rust CLI and library core
-- basic file detection
-- local Markdown link extraction
-- hook feature detection
-- text and JSON output
-- dry-run migration plan
-
-Planned:
-
-- richer parsers for each agent ecosystem
-- stronger normalized configuration schema
-- actual migration draft generation
-- Codex-powered migration assistance
-- GUI built on top of the same core model
+- Add fixtures from real-world agent configurations.
+- Expand the normalized schema for tool-specific settings.
+- Model more feature flags beyond `Hooks`.
+- Add richer parsers for Claude, Codex, Cursor, and Antigravity.
+- Generate migration draft files.
+- Add Codex-powered migration assistance.
+- Build a GUI on the same Rust core.
 
 ## Contributing
 
-Issues and pull requests are welcome. For now, the highest-value areas are:
+Issues and pull requests are welcome.
 
-- adding tests for real-world agent setting layouts
-- improving Markdown parsing coverage
-- expanding tool-specific models for Claude, Codex, Cursor, and Antigravity
-- designing the migration output format
-- adding examples under a dedicated fixtures directory
+Good first areas:
 
-Before opening a pull request, run:
+- Add scan fixtures for real projects.
+- Improve local Markdown link extraction.
+- Add tests for edge cases in JSON output.
+- Document agent-specific setting conventions.
+- Propose the migration output format.
+
+Before opening a pull request:
 
 ```bash
 cargo fmt --check
